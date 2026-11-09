@@ -1,0 +1,26 @@
+{
+  "resources/js/app.css": {
+    "file": "assets/app-567829f8.css",
+    "src": "resources/js/app.css"
+  },
+  "resources/js/app.jsx": {
+    "assets": [
+      "assets/beep-07a-24004a82.mp3",
+      "assets/beep-02-4c77c523.mp3"
+    ],
+    "css": [
+      "assets/app-567829f8.css"
+    ],
+    "file": "assets/app-98583130.js",
+    "isEntry": true,
+    "src": "resources/js/app.jsx"
+  },
+  "resources/js/sounds/beep-02.mp3": {
+    "file": "assets/beep-02-4c77c523.mp3",
+    "src": "resources/js/sounds/beep-02.mp3"
+  },
+  "resources/js/sounds/beep-07a.mp3": {
+    "file": "assets/beep-07a-24004a82.mp3",
+    "src": "resources/js/sounds/beep-07a.mp3"
+  }
+}

@@ -1,0 +1,26 @@
+<?php
+
+namespace Database\Seeders;
+
+// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use Illuminate\Database\Seeder;
+
+class DatabaseSeeder extends Seeder
+{
+    /**
+     * Seed the application's database.
+     */
+    public function run(): void
+    {
+        $this->call([
+            StartUpSeeder::class,
+            NoCustomerSeeder::class,
+           // Please comment out the following seeders when running in production for the client
+      kamareyeCareProductSeeder::class,
+           //   ProductSeeder::class,
+            // CustomerSeeder::class,
+            // SupplierSeeder::class,
+            // PurchaseSeeder::class,
+        ]);
+    }
+}
