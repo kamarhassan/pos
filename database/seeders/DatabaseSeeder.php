@@ -16,7 +16,7 @@ class DatabaseSeeder extends Seeder
             StartUpSeeder::class,
             NoCustomerSeeder::class,
            // Please comment out the following seeders when running in production for the client
-      kamareyeCareProductSeeder::class,
+      KamareyecareProductSeeder::class,
            //   ProductSeeder::class,
             // CustomerSeeder::class,
             // SupplierSeeder::class,

@@ -1,5 +1,5 @@
 <?php return array (
-  'is_live' => '0',
+  'is_live' => '1',
   'close_msg' => 'Down for maintenance',
   'site_url' => 'http://localhost/QPOS/public',
   'site_name' => 'KamarEyeCare',

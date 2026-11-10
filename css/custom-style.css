@@ -1,0 +1,175 @@
+/* ========= theme ========== */
+.sidebar-dark-lightblue .nav-sidebar>.nav-item>.nav-link.active,
+.sidebar-light-lightblue .nav-sidebar>.nav-item>.nav-link.active {
+    background-color: #8b9ee9 !important;
+}
+
+.text-lightblue {
+    color: #6982e6 !important;
+}
+
+.bg-gradient-primary {
+    background: #4a6aeb linear-gradient(180deg, #8b9ee9, #778ee9) repeat-x !important;
+}
+
+.bg-gradient-primary.btn:hover {
+    background: #2a3b81 linear-gradient(180deg, #6a78b1, #48568d) repeat-x !important;
+    border-color: #6a78b1 !important;
+}
+
+.bg-primary {
+    background: #8b9ee9 !important;
+}
+
+.btn-lightblue {
+    color: #8b9ee9 !important;
+}
+
+a {
+    color: #162c83;
+}
+
+.btn-lightblue:hover {
+    background: #2a3b81 linear-gradient(180deg, #6a78b1, #48568d) repeat-x !important;
+    border-color: #070808 !important;
+}
+
+.sidebar-light-lightblue {
+    background-color: #b9c6fb !important;
+    box-shadow: none !important;
+}
+
+body:not(.sidebar-mini-md):not(.sidebar-mini-xs):not(.layout-top-nav) .content-wrapper,
+body:not(.sidebar-mini-md):not(.sidebar-mini-xs):not(.layout-top-nav) .main-footer,
+body:not(.sidebar-mini-md):not(.sidebar-mini-xs):not(.layout-top-nav) .main-header {
+    background-color: aliceblue !important;
+}
+
+.elevation-3 {
+    background: aliceblue !important;
+}
+
+.preloader {
+    background-color: aliceblue !important;
+}
+
+/* ========= theme end ========== */
+
+.site-logo-placeholder {
+    width: auto;
+    max-width: 260px;
+    max-height: 80px;
+}
+
+.user-cart {
+    .card {
+        height: 400px;
+    }
+
+    .qty {
+        width: 45px;
+        float: left;
+    }
+}
+
+.order-product {
+    .item {
+        float: left;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+        background: #fff;
+        margin: 0 2px 4px 2px;
+
+        img {
+            width: 100px;
+            height: 100px;
+            max-width: 100%;
+        }
+
+        h5 {
+            font-size: 13px;
+            text-align: center;
+        }
+    }
+}
+
+.product-list {
+    .product-img {
+        max-width: 70px;
+        max-height: 70px;
+    }
+}
+/* for fixing select2 input field desgine issue */
+ .select2-container--default .select2-selection--single {
+     height: calc(1.5em + 0.75rem + 2px) !important;
+ }
+
+
+/* Custom large size for the switch toggle */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    /* Decreased width */
+    height: 20px;
+    /* Decreased height */
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    -webkit-transition: .4s;
+    transition: .4s;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    /* Decreased size */
+    width: 16px;
+    /* Decreased size */
+    left: 2px;
+    /* Adjusted position */
+    bottom: 2px;
+    /* Adjusted position */
+    background-color: white;
+    -webkit-transition: .4s;
+    transition: .4s;
+}
+
+input:checked+.slider {
+    background-color: #667fe4;
+}
+
+input:focus+.slider {
+    box-shadow: 0 0 1px #667fe4;
+}
+
+input:checked+.slider:before {
+    -webkit-transform: translateX(20px);
+    /* Adjusted for new size */
+    -ms-transform: translateX(20px);
+    transform: translateX(20px);
+}
+
+/* Rounded sliders */
+.slider.round {
+    border-radius: 20px;
+    /* Adjusted for new size */
+}
+
+.slider.round:before {
+    border-radius: 50%;
+}
