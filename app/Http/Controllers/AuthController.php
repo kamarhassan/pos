@@ -240,9 +240,6 @@ class AuthController extends Controller
     {
         $user = User::find(auth()->id());
 
-        if (demoUserCheck($user->email)) {
-            return back()->with('error', 'Cannot update details of demo user');
-        }
         // dd($request->all());
         $request->validate([
             'name' => 'required',

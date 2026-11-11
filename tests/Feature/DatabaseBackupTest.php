@@ -16,7 +16,7 @@ class DatabaseBackupTest extends TestCase
     public function test_admin_can_delete_a_named_backup(): void
     {
         Storage::fake('local');
-        $filename = 'qpos-backup-20261109-123000-AbCd1234.sqlite';
+        $filename = 'kamareyecare-backup-20261109-123000-AbCd1234.sqlite';
         Storage::disk('local')->put("database-backups/{$filename}", 'backup');
         $user = $this->adminUser();
 
@@ -31,7 +31,7 @@ class DatabaseBackupTest extends TestCase
     public function test_backup_delete_rejects_files_outside_the_backup_name_format(): void
     {
         Storage::fake('local');
-        Storage::disk('local')->put('database-backups/other.sqlite', 'not a QPOS backup');
+        Storage::disk('local')->put('database-backups/other.sqlite', 'not a kamareyecare backup');
         $user = $this->adminUser();
 
         $this->actingAs($user)

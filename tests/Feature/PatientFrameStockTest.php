@@ -8,12 +8,48 @@ use App\Models\Patient;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 class PatientFrameStockTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_patient_can_be_edited_when_patient_frames_table_is_missing(): void
+    {
+        $user = User::factory()->create(['username' => 'legacy-frame-user']);
+        $user->givePermissionTo(
+            collect(['customer_create', 'customer_update', 'customer_delete', 'customer_sales'])
+                ->map(fn (string $name) => Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']))
+        );
+        $frame = $this->createProduct('Legacy frame', 3);
+        $patient = Patient::create([
+            'full_name' => 'Legacy patient',
+            'frame_product_id' => $frame->id,
+            'frame_chosen' => $frame->name,
+            'frame_price' => 90,
+            'frame_quantity' => 1,
+            'lens_quantity' => 0,
+        ]);
+        Schema::drop('patient_frames');
+
+        $this->actingAs($user)
+            ->get(route('backend.admin.patients.edit', $patient->id))
+            ->assertOk()
+            ->assertSee('Only one frame can be saved')
+            ->assertSee('value="' . $frame->id . '"', false);
+
+        $this->actingAs($user)->put(route('backend.admin.patients.update', $patient->id), [
+            'full_name' => 'Updated legacy patient',
+            'frames' => [['product_id' => $frame->id, 'quantity' => 2]],
+            'lens_quantity' => 0,
+        ])->assertRedirect(route('backend.admin.patients.index'));
+
+        $this->assertSame('Updated legacy patient', $patient->fresh()->full_name);
+        $this->assertSame($frame->id, $patient->fresh()->frame_product_id);
+        $this->assertSame(2, $patient->fresh()->frame_quantity);
+    }
 
     public function test_saving_patient_or_editing_frame_does_not_create_a_sale_or_change_stock(): void
     {

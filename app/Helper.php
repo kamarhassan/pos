@@ -120,13 +120,3 @@ if (!function_exists('currency')) {
         });
     }
 }
-
-if (!function_exists('demoUserCheck')) {
-    function demoUserCheck($email = null)
-    {
-        if ($email == 'kamareyecare@gmail.com') {
-            return true;
-        }
-        return false;
-    }
-}

@@ -8,6 +8,7 @@ use App\Models\Patient;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Yajra\DataTables\DataTables;
 
@@ -56,7 +57,9 @@ class PatientController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('backend.patients.create', compact('products'));
+        $frameTableAvailable = Schema::hasTable('patient_frames');
+
+        return view('backend.patients.create', compact('products', 'frameTableAvailable'));
     }
 
     public function store(Request $request)
@@ -108,8 +111,14 @@ class PatientController extends Controller
     {
         abort_if(!auth()->user()->can('customer_update'), 403);
         $patient = Patient::findOrFail($id);
-        $patient->load('frames');
-        $selectedProductIds = $patient->frames->pluck('product_id')
+        $frameTableAvailable = Schema::hasTable('patient_frames');
+        if ($frameTableAvailable) {
+            $patient->load('frames');
+            $selectedProductIds = $patient->frames->pluck('product_id');
+        } else {
+            $selectedProductIds = collect();
+        }
+        $selectedProductIds = $selectedProductIds
             ->push($patient->frame_product_id)
             ->filter()
             ->unique()
@@ -126,7 +135,7 @@ class PatientController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('backend.patients.edit', compact('patient', 'products'));
+        return view('backend.patients.edit', compact('patient', 'products', 'frameTableAvailable'));
     }
 
     public function update(Request $request, string $id)
@@ -205,6 +214,12 @@ class PatientController extends Controller
         $frameInputs = $data['frames'];
         unset($data['frames'], $data['frame_product_id'], $data['frame_chosen'], $data['frame_price'], $data['frame_quantity']);
 
+        if (!Schema::hasTable('patient_frames') && count($frameInputs) > 1) {
+            throw ValidationException::withMessages([
+                'frames.1.product_id' => 'Only one frame can be saved until the patient_frames table is available.',
+            ]);
+        }
+
         $products = Product::whereIn('id', collect($frameInputs)->pluck('product_id'))
             ->get()
             ->keyBy('id');
@@ -237,6 +252,10 @@ class PatientController extends Controller
 
     private function syncPatientFrames(Patient $patient, array $frames): void
     {
+        if (!Schema::hasTable('patient_frames')) {
+            return;
+        }
+
         $patient->frames()->delete();
 
         foreach ($frames as $frame) {

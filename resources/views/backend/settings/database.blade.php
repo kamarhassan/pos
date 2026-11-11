@@ -6,7 +6,7 @@
 <div class="card">
   <div class="card-body">
     <h4>Database backup and restore</h4>
-    <p>Create a downloadable copy of the current SQLite database or restore a previously saved QPOS SQLite backup. Restoring replaces the current database; a safety backup is created automatically first.</p>
+    <p>Create a downloadable copy of the current SQLite database or restore a previously saved {{ config('system.app_name') }} SQLite backup. Restoring replaces the current database; a safety backup is created automatically first.</p>
 
     <form method="post" action="{{ route('backend.admin.settings.database.backup') }}" class="mb-4">
       @csrf
@@ -20,7 +20,7 @@
       <div class="form-group">
         <label for="backup">Restore from SQLite backup</label>
         <input type="file" id="backup" name="backup" class="form-control-file" accept=".sqlite,.sqlite3,.db" required>
-        <small class="form-text text-muted">The file must fit the server's upload limit. Only valid QPOS SQLite database files can be restored.</small>
+        <small class="form-text text-muted">The file must fit the server's upload limit. Only valid {{ config('system.app_name') }} SQLite database files can be restored.</small>
         @error('backup')
         <span class="text-danger">{{ $message }}</span>
         @enderror

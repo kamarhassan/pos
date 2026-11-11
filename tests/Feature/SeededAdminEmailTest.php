@@ -19,10 +19,21 @@ class SeededAdminEmailTest extends TestCase
             ->assertDontSeeText('demo@qtecsolution.net');
     }
 
-    public function test_demo_user_check_uses_the_kamareyecare_email(): void
+    public function test_seeded_admin_can_update_their_profile(): void
     {
-        $this->assertTrue(demoUserCheck('kamareyecare@gmail.com'));
-        $this->assertFalse(demoUserCheck('demo@qtecsolution.net'));
+        $user = User::factory()->create([
+            'email' => 'kamareyecare@gmail.com',
+            'username' => 'kamareyecare-admin',
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('backend.admin.profile.update'), [
+                'name' => 'Updated Admin',
+                'email' => $user->email,
+            ])
+            ->assertSessionHas('success', 'Updated Successfully');
+
+        $this->assertSame('Updated Admin', $user->fresh()->name);
     }
 
     public function test_email_migration_updates_the_existing_seeded_admin(): void

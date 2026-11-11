@@ -21,16 +21,30 @@
       <textarea class="form-control" name="prescription_details" rows="2">{{ old('prescription_details', $patient->prescription_details ?? '') }}</textarea>
     </div>
     @php
-      $storedFrameRows = $patient
-        ? $patient->frames->map(function ($frame) {
-            return ['product_id' => $frame->product_id, 'quantity' => $frame->quantity];
-          })->all()
-        : [];
+      if (!$patient) {
+        $storedFrameRows = [];
+      } elseif ($frameTableAvailable) {
+        $storedFrameRows = $patient->frames->map(function ($frame) {
+          return ['product_id' => $frame->product_id, 'quantity' => $frame->quantity];
+        })->all();
+      } else {
+        $storedFrameRows = $patient->frame_product_id
+          ? [['product_id' => $patient->frame_product_id, 'quantity' => max(1, $patient->frame_quantity)]]
+          : [];
+      }
       $frameRows = old('frames', $storedFrameRows ?: [[]]);
       $frameRows = $frameRows ?: [[]];
+      if (!$frameTableAvailable) {
+        $frameRows = array_slice($frameRows, 0, 1);
+      }
     @endphp
     <div class="col-12">
       <label class="form-label">Frames</label>
+      @unless ($frameTableAvailable)
+        <div class="alert alert-warning">
+          Multiple frame records are unavailable until the database migration is run. Only one frame can be saved for this patient.
+        </div>
+      @endunless
       <div id="frame-items" data-next-index="{{ count($frameRows) }}">
         @foreach ($frameRows as $index => $frameRow)
           <div class="row frame-row align-items-end">
@@ -69,40 +83,44 @@
           </div>
         @endforeach
       </div>
-      <button type="button" class="btn btn-outline-primary btn-sm mb-3" id="add-frame-row">
-        <i class="fas fa-plus"></i> Add another frame
-      </button>
+      @if ($frameTableAvailable)
+        <button type="button" class="btn btn-outline-primary btn-sm mb-3" id="add-frame-row">
+          <i class="fas fa-plus"></i> Add another frame
+        </button>
+      @endif
     </div>
 
-    <template id="frame-row-template">
-      <div class="row frame-row align-items-end">
-        <div class="mb-3 col-md-6">
-          <label class="form-label">Frame</label>
-          <select class="form-control frame-product-select" name="frames[__INDEX__][product_id]" style="width: 100%;">
-            <option value="">Select a frame</option>
-            @foreach ($products as $product)
-              <option value="{{ $product->id }}"
-                data-price="{{ number_format($product->discounted_price, 2, '.', '') }}">
-                {{ $product->name }} ({{ $product->sku }}) — {{ $product->quantity }} in stock
-              </option>
-            @endforeach
-          </select>
+    @if ($frameTableAvailable)
+      <template id="frame-row-template">
+        <div class="row frame-row align-items-end">
+          <div class="mb-3 col-md-6">
+            <label class="form-label">Frame</label>
+            <select class="form-control frame-product-select" name="frames[__INDEX__][product_id]" style="width: 100%;">
+              <option value="">Select a frame</option>
+              @foreach ($products as $product)
+                <option value="{{ $product->id }}"
+                  data-price="{{ number_format($product->discounted_price, 2, '.', '') }}">
+                  {{ $product->name }} ({{ $product->sku }}) — {{ $product->quantity }} in stock
+                </option>
+              @endforeach
+            </select>
+          </div>
+          <div class="mb-3 col-md-3">
+            <label class="form-label">Price</label>
+            <input type="number" step="0.01" min="0" class="form-control frame-price" value="" readonly>
+          </div>
+          <div class="mb-3 col-md-2">
+            <label class="form-label">Quantity</label>
+            <input type="number" min="1" class="form-control frame-quantity" name="frames[__INDEX__][quantity]" value="1" required>
+          </div>
+          <div class="mb-3 col-md-1">
+            <button type="button" class="btn btn-outline-danger remove-frame-row" aria-label="Remove frame">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
         </div>
-        <div class="mb-3 col-md-3">
-          <label class="form-label">Price</label>
-          <input type="number" step="0.01" min="0" class="form-control frame-price" value="" readonly>
-        </div>
-        <div class="mb-3 col-md-2">
-          <label class="form-label">Quantity</label>
-          <input type="number" min="1" class="form-control frame-quantity" name="frames[__INDEX__][quantity]" value="1" required>
-        </div>
-        <div class="mb-3 col-md-1">
-          <button type="button" class="btn btn-outline-danger remove-frame-row" aria-label="Remove frame">
-            <i class="fas fa-trash"></i>
-          </button>
-        </div>
-      </div>
-    </template>
+      </template>
+    @endif
 
     <div class="mb-3 col-md-6" id="frame-sale-summary">
       <label class="form-label">Initial payment</label>
