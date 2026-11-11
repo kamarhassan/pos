@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 class Patient extends Model
@@ -56,5 +57,10 @@ class Patient extends Model
     public function frameProduct()
     {
         return $this->belongsTo(Product::class, 'frame_product_id');
+    }
+
+    public function frames(): HasMany
+    {
+        return $this->hasMany(PatientFrame::class)->orderBy('id');
     }
 }

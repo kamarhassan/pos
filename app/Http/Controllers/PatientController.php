@@ -83,17 +83,18 @@ class PatientController extends Controller
         }
 
         $data = $this->validatedPatient($request);
+        $frames = $this->preparePatientFrames($data);
         $sellFrame = $this->shouldSellFrame($request);
         $saleData = $sellFrame ? $this->validatedFrameSale($request) : [];
 
-        [$patient, $order] = DB::transaction(function () use ($data, $sellFrame, $saleData) {
+        [$patient, $order] = DB::transaction(function () use ($data, $frames, $sellFrame, $saleData) {
             $patient = new Patient();
-            $this->syncFrameDetails($data);
             $patient->fill($data);
             $patient->save();
+            $this->syncPatientFrames($patient, $frames);
             $this->syncLegacyCustomer($patient);
 
-            $order = $sellFrame ? $this->recordPatientFrameSale($patient, $saleData) : null;
+            $order = $sellFrame ? $this->recordPatientFrameSale($patient, $frames, $saleData) : null;
 
             return [$patient, $order];
         });
@@ -107,10 +108,20 @@ class PatientController extends Controller
     {
         abort_if(!auth()->user()->can('customer_update'), 403);
         $patient = Patient::findOrFail($id);
-        $products = Product::where(function ($query) use ($patient) {
+        $patient->load('frames');
+        $selectedProductIds = $patient->frames->pluck('product_id')
+            ->push($patient->frame_product_id)
+            ->filter()
+            ->unique()
+            ->values();
+        $products = Product::where(function ($query) use ($selectedProductIds) {
             $query->where(function ($activeProducts) {
                 $activeProducts->where('status', 1)->where('quantity', '>', 0);
-            })->orWhere('id', $patient->frame_product_id);
+            });
+
+            if ($selectedProductIds->isNotEmpty()) {
+                $query->orWhereIn('id', $selectedProductIds);
+            }
         })
             ->orderBy('name')
             ->get();
@@ -123,17 +134,18 @@ class PatientController extends Controller
         abort_if(!auth()->user()->can('customer_update'), 403);
         $patient = Patient::findOrFail($id);
         $data = $this->validatedPatient($request);
+        $frames = $this->preparePatientFrames($data);
         $sellFrame = $this->shouldSellFrame($request);
         $saleData = $sellFrame ? $this->validatedFrameSale($request) : [];
 
-        $order = DB::transaction(function () use ($patient, $data, $sellFrame, $saleData) {
+        $order = DB::transaction(function () use ($patient, $data, $frames, $sellFrame, $saleData) {
             $patient = Patient::whereKey($patient->id)->lockForUpdate()->firstOrFail();
-            $this->syncFrameDetails($data);
             $patient->fill($data);
             $patient->save();
+            $this->syncPatientFrames($patient, $frames);
             $this->syncLegacyCustomer($patient);
 
-            return $sellFrame ? $this->recordPatientFrameSale($patient, $saleData) : null;
+            return $sellFrame ? $this->recordPatientFrameSale($patient, $frames, $saleData) : null;
         });
 
         return $order
@@ -188,29 +200,48 @@ class PatientController extends Controller
         return view('backend.patients.orders', compact('patient', 'orders'));
     }
 
-    private function syncFrameDetails(array &$data): void
+    private function preparePatientFrames(array &$data): array
     {
-        $newProductId = $data['frame_product_id'] ?? null;
+        $frameInputs = $data['frames'];
+        unset($data['frames'], $data['frame_product_id'], $data['frame_chosen'], $data['frame_price'], $data['frame_quantity']);
 
-        if (!$newProductId) {
-            $data['frame_product_id'] = null;
-            $data['frame_chosen'] = null;
-            $data['frame_price'] = null;
-            $data['frame_quantity'] = 0;
+        $products = Product::whereIn('id', collect($frameInputs)->pluck('product_id'))
+            ->get()
+            ->keyBy('id');
+        $frames = [];
 
-            return;
+        foreach ($frameInputs as $index => $frameInput) {
+            $product = $products->get($frameInput['product_id']);
+            if (!$product) {
+                throw ValidationException::withMessages([
+                    "frames.{$index}.product_id" => 'The selected frame no longer exists.',
+                ]);
+            }
+
+            $frames[] = [
+                'product_id' => $product->id,
+                'frame_name' => $product->name,
+                'frame_price' => $product->discounted_price,
+                'quantity' => (int) $frameInput['quantity'],
+            ];
         }
 
-        $product = Product::find($newProductId);
-        if (!$product) {
-            throw ValidationException::withMessages([
-                'frame_product_id' => 'The selected frame no longer exists.',
-            ]);
-        }
+        $primaryFrame = $frames[0] ?? null;
+        $data['frame_product_id'] = $primaryFrame['product_id'] ?? null;
+        $data['frame_chosen'] = $primaryFrame['frame_name'] ?? null;
+        $data['frame_price'] = $primaryFrame['frame_price'] ?? null;
+        $data['frame_quantity'] = $primaryFrame['quantity'] ?? 0;
 
-        $data['frame_quantity'] = max(1, (int) $data['frame_quantity']);
-        $data['frame_chosen'] = $product->name;
-        $data['frame_price'] = $product->discounted_price;
+        return $frames;
+    }
+
+    private function syncPatientFrames(Patient $patient, array $frames): void
+    {
+        $patient->frames()->delete();
+
+        foreach ($frames as $frame) {
+            $patient->frames()->create($frame);
+        }
     }
 
     private function shouldSellFrame(Request $request): bool
@@ -218,31 +249,53 @@ class PatientController extends Controller
         return $request->input('patient_action') === 'sell_frame';
     }
 
-    private function recordPatientFrameSale(Patient $patient, array $data): Order
+    private function recordPatientFrameSale(Patient $patient, array $frames, array $data): Order
     {
-        $quantity = max(1, (int) $patient->frame_quantity);
-
-        if (!$patient->frame_product_id) {
+        if (!$frames) {
             throw ValidationException::withMessages([
-                'frame_product_id' => 'Select a frame before creating a sale.',
+                'frames.0.product_id' => 'Select at least one frame before creating a sale.',
             ]);
         }
 
-        $product = Product::whereKey($patient->frame_product_id)->lockForUpdate()->first();
-        if (!$product || !$product->status) {
-            throw ValidationException::withMessages([
-                'frame_product_id' => 'The selected frame is no longer available for sale.',
-            ]);
+        $productIds = collect($frames)->pluck('product_id')->unique()->sort()->values();
+        $products = Product::whereIn('id', $productIds)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('id');
+        $saleLines = [];
+        $saleTotal = 0;
+        $subTotal = 0;
+
+        foreach ($frames as $index => $frame) {
+            $product = $products->get($frame['product_id']);
+            if (!$product || !$product->status) {
+                throw ValidationException::withMessages([
+                    "frames.{$index}.product_id" => 'The selected frame is no longer available for sale.',
+                ]);
+            }
+
+            $quantity = (int) $frame['quantity'];
+            if ($product->quantity < $quantity) {
+                throw ValidationException::withMessages([
+                    "frames.{$index}.quantity" => "Only {$product->quantity} unit(s) of this frame are available.",
+                ]);
+            }
+
+            $lineSaleTotal = round((float) $product->discounted_price * $quantity, 2);
+            $lineSubTotal = round((float) $product->price * $quantity, 2);
+            $saleTotal += $lineSaleTotal;
+            $subTotal += $lineSubTotal;
+            $saleLines[] = [
+                'product' => $product,
+                'quantity' => $quantity,
+                'sale_total' => $lineSaleTotal,
+                'sub_total' => $lineSubTotal,
+            ];
         }
 
-        if ($product->quantity < $quantity) {
-            throw ValidationException::withMessages([
-                'frame_quantity' => "Only {$product->quantity} unit(s) of this frame are available.",
-            ]);
-        }
-
-        $unitPrice = (float) $product->discounted_price;
-        $saleTotal = round($unitPrice * $quantity, 2);
+        $saleTotal = round($saleTotal, 2);
+        $subTotal = round($subTotal, 2);
         $paid = round((float) ($data['paid'] ?? 0), 2);
         $waiveRemaining = (bool) ($data['waive_remaining'] ?? false);
         if ($paid > $saleTotal) {
@@ -264,7 +317,6 @@ class PatientController extends Controller
             ]);
         }
 
-        $subTotal = round((float) $product->price * $quantity, 2);
         $discount = round($subTotal - $total, 2);
         $order = Order::create([
             'customer_id' => $customer->id,
@@ -279,17 +331,30 @@ class PatientController extends Controller
             'note' => 'Frame sale from patient record ' . $patient->id,
         ]);
 
-        $order->products()->create([
-            'product_id' => $product->id,
-            'quantity' => $quantity,
-            'price' => $product->price,
-            'purchase_price' => $product->purchase_price,
-            'discount' => $discount,
-            'sub_total' => $subTotal,
-            'total' => $total,
-        ]);
+        $allocatedTotal = 0;
+        $lastLineIndex = count($saleLines) - 1;
+        foreach ($saleLines as $index => $line) {
+            $lineTotal = $index === $lastLineIndex
+                ? round($total - $allocatedTotal, 2)
+                : ($waiveRemaining
+                    ? round($total * ($line['sale_total'] / $saleTotal), 2)
+                    : $line['sale_total']);
+            $allocatedTotal += $lineTotal;
+            $lineDiscount = round($line['sub_total'] - $lineTotal, 2);
+            $product = $line['product'];
 
-        $product->decrement('quantity', $quantity);
+            $order->products()->create([
+                'product_id' => $product->id,
+                'quantity' => $line['quantity'],
+                'price' => $product->price,
+                'purchase_price' => $product->purchase_price,
+                'discount' => $lineDiscount,
+                'sub_total' => $line['sub_total'],
+                'total' => $lineTotal,
+            ]);
+
+            $product->decrement('quantity', $line['quantity']);
+        }
 
         if ($paid > 0) {
             $order->transactions()->create([
@@ -305,6 +370,23 @@ class PatientController extends Controller
 
     private function validatedPatient(Request $request): array
     {
+        if (!$request->exists('frames')) {
+            $frames = $request->filled('frame_product_id')
+                ? [[
+                    'product_id' => $request->input('frame_product_id'),
+                    'quantity' => $request->input('frame_quantity', 1),
+                ]]
+                : [];
+        } else {
+            $frames = $request->input('frames');
+            if (is_array($frames)) {
+                $frames = array_values(array_filter($frames, function ($frame) {
+                    return !is_array($frame) || filled($frame['product_id'] ?? null);
+                }));
+            }
+        }
+        $request->merge(['frames' => $frames]);
+
         return $request->validate([
             'full_name' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
@@ -314,7 +396,11 @@ class PatientController extends Controller
             'frame_product_id' => ['nullable', 'integer', 'exists:products,id'],
             'frame_chosen' => ['nullable', 'string', 'max:255'],
             'frame_price' => ['nullable', 'numeric', 'min:0'],
-            'frame_quantity' => ['required', 'integer', 'min:0'],
+            'frame_quantity' => ['nullable', 'integer', 'min:0'],
+            'frames' => ['present', 'array'],
+            'frames.*' => ['array:product_id,quantity'],
+            'frames.*.product_id' => ['required', 'integer', 'distinct', 'exists:products,id'],
+            'frames.*.quantity' => ['required', 'integer', 'min:1'],
             'lens_chosen' => ['nullable', 'string', 'max:255'],
             'lens_price' => ['nullable', 'numeric', 'min:0'],
             'lens_quantity' => ['required', 'integer', 'min:0'],

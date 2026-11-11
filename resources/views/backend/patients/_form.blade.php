@@ -20,34 +20,90 @@
       <label class="form-label">Prescription details</label>
       <textarea class="form-control" name="prescription_details" rows="2">{{ old('prescription_details', $patient->prescription_details ?? '') }}</textarea>
     </div>
-    <div class="mb-3 col-md-6">
-      <label class="form-label">Frame chosen</label>
-      <select class="form-control select2" style="width: 100%;" id="frame_product_id" name="frame_product_id">
-        <option value="">Select a frame</option>
-        @foreach ($products as $product)
-          <option value="{{ $product->id }}"
-            data-price="{{ number_format($product->discounted_price, 2, '.', '') }}"
-            data-stock="{{ $product->quantity }}"
-            @selected((string) old('frame_product_id', $patient->frame_product_id ?? '') === (string) $product->id)>
-            {{ $product->name }} ({{ $product->sku }}) — {{ $product->quantity }} in stock
-          </option>
+    @php
+      $storedFrameRows = $patient
+        ? $patient->frames->map(function ($frame) {
+            return ['product_id' => $frame->product_id, 'quantity' => $frame->quantity];
+          })->all()
+        : [];
+      $frameRows = old('frames', $storedFrameRows ?: [[]]);
+      $frameRows = $frameRows ?: [[]];
+    @endphp
+    <div class="col-12">
+      <label class="form-label">Frames</label>
+      <div id="frame-items" data-next-index="{{ count($frameRows) }}">
+        @foreach ($frameRows as $index => $frameRow)
+          <div class="row frame-row align-items-end">
+            <div class="mb-3 col-md-6">
+              <label class="form-label">Frame</label>
+              <select class="form-control frame-product-select" name="frames[{{ $index }}][product_id]" style="width: 100%;">
+                <option value="">Select a frame</option>
+                @foreach ($products as $product)
+                  <option value="{{ $product->id }}"
+                    data-price="{{ number_format($product->discounted_price, 2, '.', '') }}"
+                    @selected((string) ($frameRow['product_id'] ?? '') === (string) $product->id)>
+                    {{ $product->name }} ({{ $product->sku }}) — {{ $product->quantity }} in stock
+                  </option>
+                @endforeach
+              </select>
+              @error("frames.$index.product_id")
+                <span class="text-danger">{{ $message }}</span>
+              @enderror
+            </div>
+            <div class="mb-3 col-md-3">
+              <label class="form-label">Price</label>
+              <input type="number" step="0.01" min="0" class="form-control frame-price" value="" readonly>
+            </div>
+            <div class="mb-3 col-md-2">
+              <label class="form-label">Quantity</label>
+              <input type="number" min="1" class="form-control frame-quantity" name="frames[{{ $index }}][quantity]" value="{{ $frameRow['quantity'] ?? 1 }}" required>
+              @error("frames.$index.quantity")
+                <span class="text-danger">{{ $message }}</span>
+              @enderror
+            </div>
+            <div class="mb-3 col-md-1">
+              <button type="button" class="btn btn-outline-danger remove-frame-row" aria-label="Remove frame">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </div>
         @endforeach
-      </select>
-      @error('frame_product_id')
-        <span class="text-danger">{{ $message }}</span>
-      @enderror
+      </div>
+      <button type="button" class="btn btn-outline-primary btn-sm mb-3" id="add-frame-row">
+        <i class="fas fa-plus"></i> Add another frame
+      </button>
     </div>
-    <div class="mb-3 col-md-3">
-      <label class="form-label">Frame price</label>
-      <input type="number" step="0.01" min="0" class="form-control" id="frame_price" name="frame_price" value="{{ old('frame_price', $patient->frame_price ?? '') }}" readonly>
-    </div>
-    <div class="mb-3 col-md-3">
-      <label class="form-label">Frame quantity</label>
-      <input type="number" min="1" class="form-control" id="frame_quantity" name="frame_quantity" value="{{ old('frame_quantity', ($patient->frame_quantity ?? 0) ?: 1) }}" required>
-      @error('frame_quantity')
-        <span class="text-danger">{{ $message }}</span>
-      @enderror
-    </div>
+
+    <template id="frame-row-template">
+      <div class="row frame-row align-items-end">
+        <div class="mb-3 col-md-6">
+          <label class="form-label">Frame</label>
+          <select class="form-control frame-product-select" name="frames[__INDEX__][product_id]" style="width: 100%;">
+            <option value="">Select a frame</option>
+            @foreach ($products as $product)
+              <option value="{{ $product->id }}"
+                data-price="{{ number_format($product->discounted_price, 2, '.', '') }}">
+                {{ $product->name }} ({{ $product->sku }}) — {{ $product->quantity }} in stock
+              </option>
+            @endforeach
+          </select>
+        </div>
+        <div class="mb-3 col-md-3">
+          <label class="form-label">Price</label>
+          <input type="number" step="0.01" min="0" class="form-control frame-price" value="" readonly>
+        </div>
+        <div class="mb-3 col-md-2">
+          <label class="form-label">Quantity</label>
+          <input type="number" min="1" class="form-control frame-quantity" name="frames[__INDEX__][quantity]" value="1" required>
+        </div>
+        <div class="mb-3 col-md-1">
+          <button type="button" class="btn btn-outline-danger remove-frame-row" aria-label="Remove frame">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+    </template>
+
     <div class="mb-3 col-md-6" id="frame-sale-summary">
       <label class="form-label">Initial payment</label>
       <input type="number" step="0.01" min="0" class="form-control" id="frame_paid" name="paid" value="{{ old('paid', 0) }}">
@@ -71,18 +127,22 @@
     @push('script')
     <script>
       $(function() {
-        const $frame = $('#frame_product_id');
-        const $quantity = $('#frame_quantity');
-        const $price = $('#frame_price');
+        const $frameItems = $('#frame-items');
         const $paid = $('#frame_paid');
         const $waiveRemaining = $('#waive_remaining');
-        const $sellButton = $('#sell-frame-button');
 
         function updateSaleSummary() {
-          const option = $frame[0].options[$frame[0].selectedIndex];
-          const total = option && option.value
-            ? Number(option.dataset.price) * Number($quantity.val() || 0)
-            : 0;
+          let total = 0;
+          $frameItems.find('.frame-row').each(function() {
+            const select = this.querySelector('.frame-product-select');
+            const option = select.options[select.selectedIndex];
+            const price = option && option.value ? Number(option.dataset.price) : 0;
+            const quantity = Number($(this).find('.frame-quantity').val() || 0);
+
+            total += price * quantity;
+            $(this).find('.frame-price').val(option && option.value ? price.toFixed(2) : '');
+          });
+
           const paid = Number($paid.val() || 0);
           const waiveRemaining = $waiveRemaining.is(':checked');
           const balanceDiscount = waiveRemaining ? Math.max(total - paid, 0) : 0;
@@ -91,32 +151,39 @@
           $('#frame_sale_total').text(finalTotal.toFixed(2));
           $('#frame_sale_discount').text(balanceDiscount.toFixed(2));
           $('#frame_sale_due').text(Math.max(finalTotal - paid, 0).toFixed(2));
-          $sellButton.prop('disabled', !option || !option.value ||
-            Number(option.dataset.stock) < Number($quantity.val() || 0) || paid > total ||
-            (waiveRemaining && paid <= 0));
         }
 
-        $frame.select2({ theme: 'bootstrap4', placeholder: 'Search for a frame', allowClear: true });
+        function initializeFrameSelects($rows) {
+          $rows.find('.frame-product-select').select2({
+            theme: 'bootstrap4',
+            placeholder: 'Search for a frame',
+            allowClear: true
+          });
+        }
 
-        $frame.on('change', function() {
-          const option = this.options[this.selectedIndex];
+        initializeFrameSelects($frameItems);
 
-          if (!option.value) {
-            $price.val('');
-            $quantity.val(1);
-            updateSaleSummary();
-            return;
-          }
-
-          $price.val(option.dataset.price);
-          if (!$quantity.val() || Number($quantity.val()) < 1) {
-            $quantity.val(1);
-          }
+        $frameItems.on('change', '.frame-product-select', function() {
           updateSaleSummary();
         });
 
-        $quantity.add($paid).add($waiveRemaining).on('input change', updateSaleSummary);
-        $frame.trigger('change');
+        $frameItems.on('input change', '.frame-quantity', updateSaleSummary);
+        $frameItems.on('click', '.remove-frame-row', function() {
+          $(this).closest('.frame-row').remove();
+          updateSaleSummary();
+        });
+        $('#add-frame-row').on('click', function() {
+          const index = Number($frameItems.attr('data-next-index'));
+          $frameItems.attr('data-next-index', index + 1);
+          const html = $('#frame-row-template').html().replace(/__INDEX__/g, index);
+          const $row = $(html);
+          $frameItems.append($row);
+          initializeFrameSelects($row);
+          updateSaleSummary();
+        });
+
+        $paid.add($waiveRemaining).on('input change', updateSaleSummary);
+        updateSaleSummary();
       });
     </script>
     @endpush

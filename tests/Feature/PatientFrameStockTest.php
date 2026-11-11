@@ -22,7 +22,10 @@ class PatientFrameStockTest extends TestCase
 
         $this->actingAs($user)
             ->get(route('backend.admin.patients.create'))
-            ->assertOk();
+            ->assertOk()
+            ->assertSee('Add another frame')
+            ->assertSee('frames[0][product_id]')
+            ->assertSee('frame-row-template');
 
         $this->actingAs($user)->post(route('backend.admin.patients.store'), [
             'full_name' => 'Frame patient',
@@ -55,17 +58,18 @@ class PatientFrameStockTest extends TestCase
         $user = $this->userWithPatientPermissions('frame-sale-user');
         $frame = $this->createProduct('Sale frame', 5);
 
-        $this->actingAs($user)->post(route('backend.admin.patients.store'), [
+        $response = $this->actingAs($user)->post(route('backend.admin.patients.store'), [
             'full_name' => 'Patient sale',
             'frame_product_id' => $frame->id,
             'frame_quantity' => 2,
             'lens_quantity' => 0,
             'paid' => 25,
             'patient_action' => 'sell_frame',
-        ])->assertRedirect(route('backend.admin.orders.invoice', 1));
+        ]);
 
         $patient = Patient::firstOrFail();
         $order = Order::with('products')->firstOrFail();
+        $response->assertRedirect(route('backend.admin.orders.invoice', $order->id));
         $this->assertSame($patient->legacy_customer_id, $order->customer_id);
         $this->assertSame($user->id, $order->user_id);
         $this->assertEquals(180, $order->total);
@@ -107,6 +111,66 @@ class PatientFrameStockTest extends TestCase
         $this->assertSame(3, $frame->fresh()->quantity);
     }
 
+    public function test_patient_frame_sale_can_include_multiple_products_and_store_them_on_the_patient(): void
+    {
+        $user = $this->userWithPatientPermissions('multiple-frame-sale-user');
+        $firstFrame = $this->createProduct('First sale frame', 5);
+        $secondFrame = $this->createProduct('Second sale frame', 4);
+
+        $response = $this->actingAs($user)->post(route('backend.admin.patients.store'), [
+            'full_name' => 'Multiple frame patient',
+            'frames' => [
+                ['product_id' => $firstFrame->id, 'quantity' => 2],
+                ['product_id' => $secondFrame->id, 'quantity' => 1],
+            ],
+            'lens_quantity' => 0,
+            'paid' => 50,
+            'patient_action' => 'sell_frame',
+        ]);
+
+        $patient = Patient::with('frames')->firstOrFail();
+        $order = Order::with('products')->firstOrFail();
+        $response->assertRedirect(route('backend.admin.orders.invoice', $order->id));
+        $this->assertCount(2, $patient->frames);
+        $this->assertSame($firstFrame->id, $patient->frame_product_id);
+        $this->assertSame(2, $patient->frame_quantity);
+        $this->assertSame($firstFrame->id, $patient->frames[0]->product_id);
+        $this->assertSame($secondFrame->id, $patient->frames[1]->product_id);
+        $this->assertCount(2, $order->products);
+        $this->assertEquals(270, $order->total);
+        $this->assertEquals(50, $order->paid);
+        $this->assertEquals(220, $order->due);
+        $this->assertSame(2, $order->products->firstWhere('product_id', $firstFrame->id)->quantity);
+        $this->assertSame(1, $order->products->firstWhere('product_id', $secondFrame->id)->quantity);
+        $this->assertSame(3, $firstFrame->fresh()->quantity);
+        $this->assertSame(3, $secondFrame->fresh()->quantity);
+    }
+
+    public function test_patient_can_save_multiple_frame_selections_without_selling_them(): void
+    {
+        $user = $this->userWithPatientPermissions('multiple-frame-save-user');
+        $firstFrame = $this->createProduct('Saved first frame', 5);
+        $secondFrame = $this->createProduct('Saved second frame', 4);
+
+        $this->actingAs($user)->post(route('backend.admin.patients.store'), [
+            'full_name' => 'Multiple frame record',
+            'frames' => [
+                ['product_id' => $firstFrame->id, 'quantity' => 1],
+                ['product_id' => $secondFrame->id, 'quantity' => 2],
+            ],
+            'lens_quantity' => 0,
+            'patient_action' => 'save',
+        ])->assertRedirect(route('backend.admin.patients.index'));
+
+        $patient = Patient::with('frames')->firstOrFail();
+        $this->assertCount(2, $patient->frames);
+        $this->assertSame($firstFrame->id, $patient->frame_product_id);
+        $this->assertSame($secondFrame->id, $patient->frames[1]->product_id);
+        $this->assertSame(5, $firstFrame->fresh()->quantity);
+        $this->assertSame(4, $secondFrame->fresh()->quantity);
+        $this->assertSame(0, Order::count());
+    }
+
     public function test_failed_frame_sale_rolls_back_patient_changes_and_stock(): void
     {
         $user = $this->userWithPatientPermissions('frame-sale-validation-user');
@@ -127,7 +191,7 @@ class PatientFrameStockTest extends TestCase
                 'paid' => 0,
                 'patient_action' => 'sell_frame',
             ])
-            ->assertSessionHasErrors('frame_quantity');
+            ->assertSessionHasErrors('frames.0.quantity');
 
         $this->assertSame('Existing patient', $patient->fresh()->full_name);
         $this->assertNull($patient->fresh()->frame_product_id);
@@ -141,7 +205,7 @@ class PatientFrameStockTest extends TestCase
         $user = $this->userWithPatientPermissions('frame-sale-discount-user');
         $frame = $this->createProduct('Discounted balance frame', 2);
 
-        $this->actingAs($user)->post(route('backend.admin.patients.store'), [
+        $response = $this->actingAs($user)->post(route('backend.admin.patients.store'), [
             'full_name' => 'Discounted sale patient',
             'frame_product_id' => $frame->id,
             'frame_quantity' => 1,
@@ -149,9 +213,10 @@ class PatientFrameStockTest extends TestCase
             'paid' => 85,
             'waive_remaining' => 1,
             'patient_action' => 'sell_frame',
-        ])->assertRedirect(route('backend.admin.orders.invoice', 1));
+        ]);
 
         $order = Order::with('products')->firstOrFail();
+        $response->assertRedirect(route('backend.admin.orders.invoice', $order->id));
         $saleLine = $order->products->firstOrFail();
         $this->assertEquals(85, $order->sub_total - $order->discount);
         $this->assertEquals(85, $order->total);
