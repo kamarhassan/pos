@@ -66,6 +66,7 @@
             <thead>
               <tr>
                 <th>SN</th>
+                <th>Type</th>
                 <th>Product</th>
                 <th>Quantity</th>
                 <th>Price {{currency()->symbol??''}}</th>
@@ -76,6 +77,7 @@
               @foreach ($order->products as $item )
               <tr>
                 <td>{{$loop->index + 1}}</td>
+                <td>Frame</td>
                 <td>{{$item->product->name}}</td>
                 <td>{{$item->quantity}} {{optional($item->product->unit)->short_name}}</td>
                 <td>
@@ -85,6 +87,26 @@
                   @endif
                 </td>
                 <td>{{$item->total}}</td>
+              </tr>
+              @endforeach
+              @foreach ($order->lenses as $lens)
+              <tr>
+                <td>{{ $order->products->count() + $loop->index + 1 }}</td>
+                <td>Lens</td>
+                <td>{{ $lens->lens_name }}</td>
+                <td>{{ $lens->quantity }}</td>
+                <td>{{ number_format($lens->price, 2, '.', ',') }}</td>
+                <td>{{ number_format($lens->total, 2, '.', ',') }}</td>
+              </tr>
+              @endforeach
+              @foreach ($order->otherProducts as $otherProduct)
+              <tr>
+                <td>{{ $order->products->count() + $order->lenses->count() + $loop->index + 1 }}</td>
+                <td>OTHER PRODUCT</td>
+                <td>{{ $otherProduct->name }}</td>
+                <td>{{ $otherProduct->quantity }}</td>
+                <td>{{ number_format($otherProduct->price, 2, '.', ',') }}</td>
+                <td>{{ number_format($otherProduct->total, 2, '.', ',') }}</td>
               </tr>
               @endforeach
             </tbody>

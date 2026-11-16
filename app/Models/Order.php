@@ -17,6 +17,16 @@ class Order extends Model
     {
         return $this->hasMany(OrderProduct::class);
     }
+
+    public function lenses()
+    {
+        return $this->hasMany(OrderLens::class);
+    }
+
+    public function otherProducts()
+    {
+        return $this->hasMany(OrderOtherProduct::class);
+    }
     public function transactions()
     {
         return $this->hasMany(OrderTransaction::class);
@@ -26,7 +36,7 @@ class Order extends Model
     }
     public function getTotalItemAttribute()
     {
-        return $this->products()->sum('quantity');
+        return $this->products()->sum('quantity') + (int) $this->lens_quantity;
     }
    
 }

@@ -28,8 +28,11 @@
           <td>{{ $order->created_at?->format('d M, Y') }}</td>
           <td>
             @foreach ($order->products as $item)
-              {{ $item->product->name ?? 'Product unavailable' }} × {{ $item->quantity }}@if (!$loop->last), @endif
+              {{ $item->product->name ?? 'Product unavailable' }} × {{ $item->quantity }}@if (!$loop->last || $order->lens_quantity > 0), @endif
             @endforeach
+            @if ($order->lens_quantity > 0)
+              {{ $order->lens_name ?: 'Lens' }} × {{ $order->lens_quantity }} = {{ number_format($order->lens_total, 2) }}
+            @endif
           </td>
           <td>{{ number_format($order->total, 2) }}</td>
           <td>{{ number_format($order->paid, 2) }}</td>

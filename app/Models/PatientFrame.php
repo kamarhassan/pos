@@ -12,6 +12,7 @@ class PatientFrame extends Model
         'frame_name',
         'frame_price',
         'quantity',
+        'discount',
     ];
 
     public function patient(): BelongsTo

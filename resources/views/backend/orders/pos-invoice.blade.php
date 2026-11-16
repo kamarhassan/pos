@@ -40,6 +40,7 @@
     <table style="width: 100%;">
       <thead>
         <tr>
+          <th style="text-align: left;">Type</th>
           <th style="text-align: left;">Product</th>
           <th style="text-align: right;"></th>
           <!-- <th style="text-align: right;">Qty</th> -->
@@ -50,10 +51,27 @@
       <tbody>
         @foreach ($order->products as $item)
         <tr>
+          <td>Frame</td>
           <td>{{ $item->product->name }}</td>
           <!-- <td class="text-right">{{ $item->quantity }}</td> -->
           <td class="text-right">{{ $item->quantity }}*{{ $item->discounted_price}}</td>
           <td class="text-right">{{ $item->total }}</td>
+        </tr>
+        @endforeach
+        @foreach ($order->lenses as $lens)
+        <tr>
+          <td>Lens</td>
+          <td>{{ $lens->lens_name }}</td>
+          <td class="text-right">{{ $lens->quantity }}*{{ $lens->price }}</td>
+          <td class="text-right">{{ number_format($lens->total, 2) }}</td>
+        </tr>
+        @endforeach
+        @foreach ($order->otherProducts as $otherProduct)
+        <tr>
+          <td>OTHER PRODUCT</td>
+          <td>{{ $otherProduct->name }}</td>
+          <td class="text-right">{{ $otherProduct->quantity }}*{{ $otherProduct->price }}</td>
+          <td class="text-right">{{ number_format($otherProduct->total, 2) }}</td>
         </tr>
         @endforeach
       </tbody>

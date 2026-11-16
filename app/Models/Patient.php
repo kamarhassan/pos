@@ -28,10 +28,20 @@ class Patient extends Model
         'notes',
         'power_right_sphere',
         'power_right_cylinder',
+        'power_right_axis',
         'power_right_addition',
+        'power_right_va',
         'power_left_sphere',
         'power_left_cylinder',
+        'power_left_axis',
         'power_left_addition',
+        'power_left_va',
+        'power_pd',
+        'power_near',
+        'power_dist',
+        'power_use',
+        'power_progressive',
+        'power_bifocal',
         'power_notes',
         'legacy_customer_id',
     ];
@@ -62,5 +72,15 @@ class Patient extends Model
     public function frames(): HasMany
     {
         return $this->hasMany(PatientFrame::class)->orderBy('id');
+    }
+
+    public function lenses(): HasMany
+    {
+        return $this->hasMany(PatientLens::class)->orderBy('id');
+    }
+
+    public function otherProducts(): HasMany
+    {
+        return $this->hasMany(PatientOtherProduct::class)->orderBy('id');
     }
 }
